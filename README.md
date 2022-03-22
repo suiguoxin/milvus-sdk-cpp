@@ -12,4 +12,6 @@ sudo docker run -itd \
     --name=milvus-sdk-cpp \
     --net=host \
     milvus-sdk-cpp:latest
+
+sudo docker exec -it milvus-sdk-cpp /milvus-sdk-cpp/build/examples/simple/sdk_simple
 ```

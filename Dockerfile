@@ -1,6 +1,7 @@
 FROM ubuntu:18.04
 
 RUN apt-get update && apt install -y \
+build-essential \
 libssl-dev \
 git \
 wget \
@@ -15,6 +16,3 @@ RUN wget "https://github.com/Kitware/CMake/releases/download/v3.14.4/cmake-3.14.
 
 # build
 RUN cd /milvus-sdk-cpp && mkdir -p build && cd build && cmake ../ && make
-
-# run example
-RUN ./examples/simple/sdk_simple
