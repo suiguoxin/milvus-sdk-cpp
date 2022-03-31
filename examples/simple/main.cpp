@@ -67,27 +67,18 @@ int main(int argc, char* argv[]) {
     CheckStatus("Failed to load collection:", status);
     status = ins_client->LoadCollection(ins_collection_name);
     CheckStatus("Failed to load collection:", status);
+    std::cout << "Load collection succesfully." << std::endl;
     
 	std::ifstream img_in(img_filename.c_str());
-    if (!img_in)
-	{
-		std::cout << "Fail to read img query " << std::endl;
-		return 0;
-	}
     std::ifstream ins_in(ins_filename.c_str());
-    if (!img_in)
-	{
-		std::cout << "Fail to read ins query " << std::endl;
-		return 0;
-	}
+
     std::vector<float> img_query_id, ins_query_id;
     std::vector<std::vector<float> > img_query, ins_query;
     img_query.resize(SIZE_QUERY);
     ins_query.resize(SIZE_QUERY);
     std::string line;
     int num = 0;
-    for (; getline(img_in, line);)
-	{
+    for (; getline(img_in, line);) {
         img_query_id.push_back(std::stof(line.substr(0, line.find("\t"))));
 
 		line.erase(0, line.find("[") + 1);
@@ -106,8 +97,7 @@ int main(int argc, char* argv[]) {
         num++;
     }
     num = 0;
-    for (; getline(ins_in, line);)
-	{
+    for (; getline(ins_in, line);) {
         ins_query_id.push_back(std::stof(line.substr(0, line.find("\t"))));
 
 		line.erase(0, line.find("[") + 1);
@@ -125,21 +115,12 @@ int main(int argc, char* argv[]) {
             ins_query[num][i] /= sum;
         num++;
     }
+    std::cout << "Queries has been read." << std::endl;
 
     std::string output_result_path = outputResult + "qrels.txt";
     std::string output_lantency_path = outputResult + "latency.txt";
-    std::ofstream out1(output_result_path.c_str());
-    if (!out1.is_open())
-    {
-        std::cout << "Cannot open file out1" << std::endl;
-        return 0;
-    }
-    std::ofstream out2(output_lantency_path.c_str());
-    if (!out2.is_open())
-    {
-        std::cout << "Cannot open file out2" << std::endl;
-        return 0;
-    }
+    std::ofstream out1(output_result_path);
+    std::ofstream out2(output_lantency_path);
 
     for (int i = 0; i <= SIZE_QUERY; i++)
     {
@@ -151,10 +132,12 @@ int main(int argc, char* argv[]) {
             int TOPK = limit;
             int nprobe = TOPK / (SIZE_COLLECTION / nlist);
             
+            std::cout << "search start." << std::endl;
+
             milvus::SearchArguments img_arguments{};
             img_arguments.SetCollectionName(img_collection_name);
             img_arguments.SetTopK(TOPK);
-            img_arguments.SetGuaranteeTimestamp(milvus::GuaranteeStrongTs());
+            // img_arguments.SetGuaranteeTimestamp(milvus::GuaranteeStrongTs());
             img_arguments.AddTargetVector("img_embeds", img_query[i]);
             img_arguments.AddExtraParam("nprobe", nprobe);
             milvus::SearchResults img_search_results{};
@@ -165,7 +148,7 @@ int main(int argc, char* argv[]) {
             milvus::SearchArguments ins_arguments{};
             ins_arguments.SetCollectionName(ins_collection_name);
             ins_arguments.SetTopK(TOPK);
-            ins_arguments.SetGuaranteeTimestamp(milvus::GuaranteeStrongTs());
+            // ins_arguments.SetGuaranteeTimestamp(milvus::GuaranteeStrongTs());
             ins_arguments.AddTargetVector("rec_embeds", ins_query[i]);
             ins_arguments.AddExtraParam("nprobe", nprobe);
             milvus::SearchResults ins_search_results{};
@@ -209,9 +192,6 @@ int main(int argc, char* argv[]) {
                     
                 }
             }
-
-
-
 
             if (flag) {
                 double End_time = clock();
