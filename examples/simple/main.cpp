@@ -25,9 +25,9 @@
 #include "milvus/MilvusClient.h"
 #include "milvus/types/CollectionSchema.h"
 
-const int topk = 50;
-const int nlist = 1024;
-const int search_limit = 512;
+int topk = 50;
+int nlist = 8192;
+int search_limit = 2048;
 const int SIZE_COLLECTION = 46201;
 const int SIZE_QUERY = 5133;
 const std::string img_collection_name = "recipe_img_normalized";
@@ -45,32 +45,43 @@ CheckStatus(std::string&& prefix, const milvus::Status& status) {
     }
 }
 
+struct HIT {
+    float id;
+    float score;
+    HIT(float ID, float SCORE) : id(ID), score(SCORE) {
+    }
+};
+
 bool
-NRA(std::vector<std::vector<float> > ids, std::vector<std::vector<float> > scores, std::map<float, float>& RESULT) {
-    float minScore = -1.0;
+NRA(std::vector<std::vector<HIT> > HitData, std::map<float, float>& RESULT, int topk, float minScore) {
     bool flag = false;
     std::unordered_map<float, float> UB, LB;
     std::vector<std::unordered_map<float, float> > matrix;
+    std::vector<float> lastExistValue;
     std::unordered_set<float> seenIDSet;
-    matrix.resize(ids.size());
-    for (int i = 0; i < ids[0].size(); i++) {
-        for (int j = 0; j < ids.size(); j++) {
-            matrix[j][ids[j][i]] = scores[j][i];
-            seenIDSet.insert(ids[j][i]);
-        }
+    matrix.resize(HitData.size());
+    lastExistValue.resize(HitData.size());
+    int max_len = HitData[0].size();
+    for (auto id : HitData) max_len = std::max(max_len, (int)id.size());
+    for (int i = 0; i < max_len; i++) {
+        for (int j = 0; j < HitData.size(); j++)
+            if (HitData[j].size() > i) {
+                matrix[j][HitData[j][i].id] = HitData[j][i].score;
+                seenIDSet.insert(HitData[j][i].id);
+                lastExistValue[j] = HitData[j][i].score;
+            }
 
         for (auto id : seenIDSet) {
             LB[id] = 0;
             UB[id] = 0;
-            for (int k = 0; k < ids.size(); k++) {
+            for (int k = 0; k < HitData.size(); k++)
                 if (matrix[k].find(id) == matrix[k].end()) {
                     LB[id] += minScore;
-                    UB[id] += scores[k][i];
+                    UB[id] += lastExistValue[k];
                 } else {
                     LB[id] += matrix[k][id];
                     UB[id] += matrix[k][id];
                 }
-            }
         }
         if (LB.size() > topk) {
             std::vector<float> LB_value;
@@ -109,6 +120,14 @@ int
 main(int argc, char* argv[]) {
     std::string img_filename = "/embeddings/img_embeds_query.tsv";
     std::string ins_filename = "/embeddings/rec_embeds_query.tsv";
+
+    std::cout << "input topk = ";
+    std::cin >> topk;
+    std::cout << "input nlist = ";
+    std::cin >> nlist;
+    std::cout << "input search_limit = ";
+    std::cin >> search_limit;
+
     printf("Experiments start...\n");
 
     auto client = milvus::MilvusClient::Create();
@@ -190,7 +209,7 @@ main(int argc, char* argv[]) {
         while (limit <= search_limit && limit <= SIZE_COLLECTION) {
             bool flag = false;
             int TOPK = limit;
-            int nprobe = std::ceil(TOPK / (SIZE_COLLECTION / nlist));
+            int nprobe = std::ceil(((float)TOPK) / (((float)SIZE_COLLECTION) / ((float)nlist)));
 
             milvus::SearchArguments img_arguments{};
             img_arguments.SetCollectionName(img_collection_name);
@@ -229,14 +248,13 @@ main(int argc, char* argv[]) {
                     }
                     std::cout << "ins Successfully search, " << ins_ids.size() << "results." << std::endl;
 
-                    std::vector<std::vector<float> > ids, distances;
-                    ids.resize(2);
-                    distances.resize(2);
+                    std::vector<std::vector<HIT> > HitData;
+                    HitData.resize(2);
                     for (int i = 0; i < img_ids.size(); i++)
-                        ids[0].push_back(img_ids[i]), ids[1].push_back(ins_ids[i]),
-                            distances[0].push_back(img_distances[i]), distances[1].push_back(ins_distances[i]);
+                        HitData[0].push_back(HIT(img_ids[i], img_distances[i])),
+                            HitData[1].push_back(HIT(ins_ids[i], ins_distances[i]));
 
-                    flag = NRA(ids, distances, RESULT);
+                    flag = NRA(HitData, RESULT, topk, -1);
                     std::cout << "NRA finish, has " << RESULT.size() << "results." << std::endl;
                 }
             }
