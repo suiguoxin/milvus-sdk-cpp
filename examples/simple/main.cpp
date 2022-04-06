@@ -14,13 +14,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <iostream>
-#include <random>
-#include <string>
-#include <map>
-#include <fstream>
 #include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <random>
 #include <set>
+#include <string>
 
 #include "milvus/MilvusClient.h"
 #include "milvus/types/CollectionSchema.h"
@@ -35,34 +35,33 @@ const std::string ins_collection_name = "recipe_instr_normalized";
 std::string outputResult = "/result/";
 int m = 1024;
 
+std::map<float, float> RESULT;
 
-std::map<float,float> RESULT;
-
-void CheckStatus(std::string&& prefix, const milvus::Status& status) {
+void
+CheckStatus(std::string&& prefix, const milvus::Status& status) {
     if (!status.IsOk()) {
         std::cout << prefix << " " << status.Message() << std::endl;
         exit(1);
     }
 }
 
-bool NRA(std::vector<std::vector<float> > ids, std::vector<std::vector<float> > scores, std::map<float,float> &RESULT)
-{
+bool
+NRA(std::vector<std::vector<float> > ids, std::vector<std::vector<float> > scores, std::map<float, float>& RESULT) {
     float minScore = -1.0;
     bool flag = false;
-    std::unordered_map<float,float> UB, LB;
-    std::vector<std::unordered_map<float,float> > matrix;
+    std::unordered_map<float, float> UB, LB;
+    std::vector<std::unordered_map<float, float> > matrix;
     std::unordered_set<float> seenIDSet;
     matrix.resize(ids.size());
     for (int i = 0; i < ids[0].size(); i++) {
-
         for (int j = 0; j < ids.size(); j++) {
             matrix[j][ids[j][i]] = scores[j][i];
             seenIDSet.insert(ids[j][i]);
         }
-        
+
         for (auto id : seenIDSet) {
-            LB [id] = 0;
-            UB [id] = 0;
+            LB[id] = 0;
+            UB[id] = 0;
             for (int k = 0; k < ids.size(); k++) {
                 if (matrix[k].find(id) == matrix[k].end()) {
                     LB[id] += minScore;
@@ -75,8 +74,7 @@ bool NRA(std::vector<std::vector<float> > ids, std::vector<std::vector<float> > 
         }
         if (LB.size() > topk) {
             std::vector<float> LB_value;
-            for (auto x : LB)
-                LB_value.push_back(x.second);
+            for (auto x : LB) LB_value.push_back(x.second);
             int Rank = LB_value.size() - topk;
             std::nth_element(LB_value.begin(), LB_value.begin() + Rank, LB_value.end());
             float LB_topk = LB_value[Rank], UB_max = -100;
@@ -86,7 +84,7 @@ bool NRA(std::vector<std::vector<float> > ids, std::vector<std::vector<float> > 
                 if (lbValue <= LB_topk)
                     UB_max = std::max(UB_max, UB[id]);
             }
-            
+
             if (LB_topk >= UB_max) {
                 flag = true;
                 break;
@@ -97,8 +95,8 @@ bool NRA(std::vector<std::vector<float> > ids, std::vector<std::vector<float> > 
     int validnumber = 0;
     for (auto x : LB) {
         float id = x.first, lb_value = x.second;
-        RESULT[- lb_value] = x.first;
-        while(RESULT.size() > topk) {
+        RESULT[-lb_value] = x.first;
+        while (RESULT.size() > topk) {
             auto tmp = RESULT.end();
             tmp--;
             RESULT.erase(tmp);
@@ -107,11 +105,12 @@ bool NRA(std::vector<std::vector<float> > ids, std::vector<std::vector<float> > 
     return flag;
 }
 
-int main(int argc, char* argv[]) {
+int
+main(int argc, char* argv[]) {
     std::string img_filename = "/embeddings/img_embeds_query.tsv";
     std::string ins_filename = "/embeddings/rec_embeds_query.tsv";
     printf("Experiments start...\n");
-    
+
     auto client = milvus::MilvusClient::Create();
 
     milvus::ConnectParam connect_param{"localhost", 19530};
@@ -119,13 +118,11 @@ int main(int argc, char* argv[]) {
     CheckStatus("Failed to connect milvus server:", status);
     std::cout << "Connect to milvus server." << std::endl;
 
-
     status = client->LoadCollection(img_collection_name);
     CheckStatus("Failed to load collection:", status);
     status = client->LoadCollection(ins_collection_name);
     CheckStatus("Failed to load collection:", status);
     std::cout << "Load collection succesfully." << std::endl;
-
 
     milvus::CollectionStat coll_stat;
     status = client->GetCollectionStatistics(img_collection_name, coll_stat);
@@ -134,9 +131,8 @@ int main(int argc, char* argv[]) {
     status = client->GetCollectionStatistics(ins_collection_name, coll_stat);
     CheckStatus("Failed to get collection statistics:", status);
     std::cout << "Collection " << ins_collection_name << " row count: " << coll_stat.RowCount() << std::endl;
-    
-    
-	std::ifstream img_in(img_filename);
+
+    std::ifstream img_in(img_filename);
     std::ifstream ins_in(ins_filename);
 
     std::vector<float> img_query_id, ins_query_id;
@@ -148,19 +144,17 @@ int main(int argc, char* argv[]) {
     for (; getline(img_in, line);) {
         img_query_id.push_back(std::stof(line.substr(0, line.find("\t"))));
 
-		line.erase(0, line.find("[") + 1);
+        line.erase(0, line.find("[") + 1);
         for (int j = 0; j < m - 1; j++) {
             img_query[num].push_back(std::stof(line.substr(0, line.find(","))));
             line.erase(0, line.find(",") + 2);
         }
         img_query[num].push_back(std::stof(line.substr(0, line.find("]"))));
-        //normalization;
+        // normalization;
         double sum = 0.0;
-        for (auto i = 0; i < img_query[num].size(); i++)
-            sum += img_query[num][i] * img_query[num][i];
+        for (auto i = 0; i < img_query[num].size(); i++) sum += img_query[num][i] * img_query[num][i];
         sum = sqrt(sum);
-        for (auto i = 0; i < img_query[num].size(); i++)
-            img_query[num][i] /= sum;
+        for (auto i = 0; i < img_query[num].size(); i++) img_query[num][i] /= sum;
         num++;
     }
     std::cout << num << " img queries has been read." << std::endl;
@@ -168,19 +162,17 @@ int main(int argc, char* argv[]) {
     for (; getline(ins_in, line);) {
         ins_query_id.push_back(std::stof(line.substr(0, line.find("\t"))));
 
-		line.erase(0, line.find("[") + 1);
+        line.erase(0, line.find("[") + 1);
         for (int j = 0; j < m - 1; j++) {
             ins_query[num].push_back(std::stof(line.substr(0, line.find(","))));
             line.erase(0, line.find(",") + 2);
         }
         ins_query[num].push_back(std::stof(line.substr(0, line.find("]"))));
-        //normalization;
+        // normalization;
         double sum = 0.0;
-        for (auto i = 0; i < ins_query[num].size(); i++)
-            sum += ins_query[num][i] * ins_query[num][i];
+        for (auto i = 0; i < ins_query[num].size(); i++) sum += ins_query[num][i] * ins_query[num][i];
         sum = sqrt(sum);
-        for (auto i = 0; i < ins_query[num].size(); i++)
-            ins_query[num][i] /= sum;
+        for (auto i = 0; i < ins_query[num].size(); i++) ins_query[num][i] /= sum;
         num++;
     }
     std::cout << num << " ins queries has been read." << std::endl;
@@ -190,17 +182,15 @@ int main(int argc, char* argv[]) {
     std::ofstream out1(output_result_path);
     std::ofstream out2(output_lantency_path);
 
-    for (int i = 0; i < SIZE_QUERY; i++)
-    {
+    for (int i = 0; i < SIZE_QUERY; i++) {
         double Begin_time = clock();
         int limit = 1;
         std::cout << "search start." << std::endl;
-        while(limit < topk) limit *= 2;
-        while(limit <= search_limit && limit <= SIZE_COLLECTION) {
+        while (limit < topk) limit *= 2;
+        while (limit <= search_limit && limit <= SIZE_COLLECTION) {
             bool flag = false;
             int TOPK = limit;
             int nprobe = std::ceil(TOPK / (SIZE_COLLECTION / nlist));
-            
 
             milvus::SearchArguments img_arguments{};
             img_arguments.SetCollectionName(img_collection_name);
@@ -229,7 +219,7 @@ int main(int argc, char* argv[]) {
                     std::cout << "img Illegal result!" << std::endl;
                     continue;
                 }
-                std::cout << "img Successfully search, " << img_ids.size() << "results." <<std::endl;
+                std::cout << "img Successfully search, " << img_ids.size() << "results." << std::endl;
                 for (auto& ins_result : ins_search_results.Results()) {
                     auto& ins_ids = ins_result.Ids().IntIDArray();
                     auto& ins_distances = ins_result.Scores();
@@ -237,30 +227,30 @@ int main(int argc, char* argv[]) {
                         std::cout << "img Illegal result!" << std::endl;
                         continue;
                     }
-                    std::cout << "ins Successfully search, " << ins_ids.size() << "results." <<std::endl;
+                    std::cout << "ins Successfully search, " << ins_ids.size() << "results." << std::endl;
 
                     std::vector<std::vector<float> > ids, distances;
                     ids.resize(2);
                     distances.resize(2);
                     for (int i = 0; i < img_ids.size(); i++)
-                        ids[0].push_back(img_ids[i]),
-                        ids[1].push_back(ins_ids[i]),
-                        distances[0].push_back(img_distances[i]),
-                        distances[1].push_back(ins_distances[i]);
+                        ids[0].push_back(img_ids[i]), ids[1].push_back(ins_ids[i]),
+                            distances[0].push_back(img_distances[i]), distances[1].push_back(ins_distances[i]);
 
                     flag = NRA(ids, distances, RESULT);
                     std::cout << "NRA finish, has " << RESULT.size() << "results." << std::endl;
                 }
             }
 
-            if (flag) break;
+            if (flag)
+                break;
             limit *= 2;
         }
         double End_time = clock();
         int rank = 0;
         for (auto x : RESULT) {
             out1 << img_query_id[i] << " " << x.second << " " << ++rank << " " << -x.first << std::endl;
-            if (rank == 50) break;
+            if (rank == 50)
+                break;
         }
         out2 << img_query_id[i] << " " << (End_time - Begin_time) / CLOCKS_PER_SEC << std::endl;
         for (int ii = 0; ii < 50 - RESULT.size(); ii++)
