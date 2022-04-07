@@ -251,8 +251,9 @@ main(int argc, char* argv[]) {
                     std::vector<std::vector<HIT> > HitData;
                     HitData.resize(2);
                     for (int i = 0; i < img_ids.size(); i++)
-                        HitData[0].push_back(HIT(img_ids[i], img_distances[i])),
-                            HitData[1].push_back(HIT(ins_ids[i], ins_distances[i]));
+                        HitData[0].push_back(HIT(img_ids[i], img_distances[i]));
+                    for (int i = 0; i < ins_ids.size(); i++)
+                        HitData[1].push_back(HIT(ins_ids[i], ins_distances[i]));
 
                     flag = NRA(HitData, RESULT, topk, -1);
                     std::cout << "NRA finish, has " << RESULT.size() << "results." << std::endl;
