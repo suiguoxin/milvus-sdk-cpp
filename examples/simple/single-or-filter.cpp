@@ -218,9 +218,9 @@ main(int argc, char* argv[]) {
 
             out2 << img_query_id[i] << " " << (End_time - Begin_time) / CLOCKS_PER_SEC << std::endl;
             int rank = 0;
-            for (int i = 0; i < len; i++)
-                out1 << img_query_id[i] << " " << img_ids[i] << " " << ++rank << " " << img_distances[i] << std::endl;
-            for (int i = len; i < topk; i++)
+            for (int j = 0; j < len; j++)
+                out1 << img_query_id[i] << " " << img_ids[j] << " " << ++rank << " " << img_distances[j] << std::endl;
+            for (int j = len; j < topk; j++)
                 out1 << img_query_id[i] << " " << -1 << " " << ++rank << " " << -1 << std::endl;
         }
 
