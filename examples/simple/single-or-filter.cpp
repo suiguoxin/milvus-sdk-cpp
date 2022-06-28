@@ -26,7 +26,7 @@
 #include "milvus/types/CollectionSchema.h"
 
 int topk = 50;
-int nlist = 8192;
+int nprobe = 8192;
 int search_limit = 2048;
 const int SIZE_COLLECTION = 330922;
 const int SIZE_QUERY = 10000;
@@ -123,8 +123,8 @@ main(int argc, char* argv[]) {
 
     std::cout << "input topk = ";
     std::cin >> topk;
-    std::cout << "input nlist = ";
-    std::cin >> nlist;
+    std::cout << "input nprobe = ";
+    std::cin >> nprobe;
 
     printf("Experiments start...\n");
 
@@ -181,8 +181,8 @@ main(int argc, char* argv[]) {
     }
     std::cout << num << " filter has been read." << std::endl;
 
-    std::string output_result_path = outputResult + std::to_string(nlist) +"qrels-filter.txt";
-    std::string output_lantency_path = outputResult + std::to_string(nlist) + "latency-filter.txt";
+    std::string output_result_path = outputResult + std::to_string(nprobe) +"qrels-filter.txt";
+    std::string output_lantency_path = outputResult + std::to_string(nprobe) + "latency-filter.txt";
     std::ofstream out1(output_result_path);
     std::ofstream out2(output_lantency_path);
 
@@ -192,7 +192,6 @@ main(int argc, char* argv[]) {
         
         bool flag = false;
         int TOPK = topk;
-        int nprobe = std::ceil(((float)TOPK) / (((float)SIZE_COLLECTION) / ((float)nlist)));
 
         milvus::SearchArguments img_arguments{};
         img_arguments.SetCollectionName(img_collection_name);
