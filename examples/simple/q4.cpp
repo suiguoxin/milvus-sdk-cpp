@@ -14,8 +14,9 @@ int topk = 50;
 int ef = 64;
 const int SIZE_QUERY = 10000;
 const std::string img_collection_name = "recipe_img";
+const std::string ins_collection_name = "recipe_instr";
 std::string img_filename = "/embeddings/img_embeds.tsv";
-std::string filter_filename = "/embeddings/string_filter.tsv";
+std::string filter_filename = "/embeddings/price.tsv";
 std::string outputResult = "/result/";
 int m = 1024;
 
@@ -51,7 +52,7 @@ void search(int ef){
     std::ifstream filter_in(filter_filename);
 
     std::vector<float> img_query_id;
-    std::vector<std::string> filters;
+    std::vector<int> prices;
     std::vector<std::vector<float> > img_query;
     img_query.resize(SIZE_QUERY);
     std::string line;
@@ -79,7 +80,7 @@ void search(int ef){
         line.erase(0, line.find("\t") + 1);
         // ingre_num.push_back(std::stoi(line.substr(0, line.find("\t"))));
         // line.erase(0, line.find("\t") + 1);
-        filters.push_back(line.substr(0, line.find("\n")));
+        prices.push_back(std::stoi(line.substr(0, line.find("\n"))));
         num++;
     }
     std::cout << num << " filter has been read." << std::endl;
@@ -100,7 +101,7 @@ void search(int ef){
         img_arguments.AddTargetVector("img_embeds", img_query[i]);
         img_arguments.AddExtraParam("ef", ef);
         // img_arguments.SetExpression("ingredient_count <= " + std::to_string(ingre_num[i]) + " || instruction_step <= " + std::to_string(instruct_step[i]));
-        img_arguments.SetExpression("text not like \"%" + filters[i] + "%\"");
+        img_arguments.SetExpression("price <= " + std::to_string(prices[i]));
         img_arguments.SetMetricType(milvus::MetricType::IP);
         milvus::SearchResults img_search_results{};
         auto status = client->Search(img_arguments, img_search_results); 

@@ -5,17 +5,15 @@
 #include <random>
 #include <set>
 #include <string>
-#include <chrono>
 
 #include "milvus/MilvusClient.h"
 #include "milvus/types/CollectionSchema.h"
 
 int topk = 50;
-int ef = 64;
 const int SIZE_QUERY = 10000;
 const std::string img_collection_name = "recipe_img";
+const std::string ins_collection_name = "recipe_instr";
 std::string img_filename = "/embeddings/img_embeds.tsv";
-std::string filter_filename = "/embeddings/string_filter.tsv";
 std::string outputResult = "/result/";
 int m = 1024;
 
@@ -48,10 +46,8 @@ void search(int ef){
     std::cout << "Collection " << img_collection_name << " row count: " << coll_stat.RowCount() << std::endl;
     
     std::ifstream img_in(img_filename);
-    std::ifstream filter_in(filter_filename);
 
     std::vector<float> img_query_id;
-    std::vector<std::string> filters;
     std::vector<std::vector<float> > img_query;
     img_query.resize(SIZE_QUERY);
     std::string line;
@@ -73,16 +69,7 @@ void search(int ef){
         num++;
     }
     std::cout << num << " img queries has been read." << std::endl;
-    
-    num = 0;
-    for (; getline(filter_in, line);) {
-        line.erase(0, line.find("\t") + 1);
-        // ingre_num.push_back(std::stoi(line.substr(0, line.find("\t"))));
-        // line.erase(0, line.find("\t") + 1);
-        filters.push_back(line.substr(0, line.find("\n")));
-        num++;
-    }
-    std::cout << num << " filter has been read." << std::endl;
+
     std::string output_result_path = outputResult + "qrels-" + std::to_string(ef) + ".tsv";
     std::string output_lantency_path = outputResult + "latency-" + std::to_string(ef) + ".tsv";
     std::ofstream out1(output_result_path);
@@ -99,8 +86,6 @@ void search(int ef){
         img_arguments.SetTopK(TOPK);
         img_arguments.AddTargetVector("img_embeds", img_query[i]);
         img_arguments.AddExtraParam("ef", ef);
-        // img_arguments.SetExpression("ingredient_count <= " + std::to_string(ingre_num[i]) + " || instruction_step <= " + std::to_string(instruct_step[i]));
-        img_arguments.SetExpression("text not like \"%" + filters[i] + "%\"");
         img_arguments.SetMetricType(milvus::MetricType::IP);
         milvus::SearchResults img_search_results{};
         auto status = client->Search(img_arguments, img_search_results); 
@@ -110,20 +95,21 @@ void search(int ef){
             auto& img_ids = img_result.Ids().IntIDArray();
             auto& img_distances = img_result.Scores();
             if (img_ids.size() != img_distances.size()) {
-                std::cout << "img illegal result!" << std::endl;
+                std::cout << "img Illegal result!" << std::endl;
                 continue;
             }
-            int len = img_ids.size();
 
+            auto endTime = std::chrono::high_resolution_clock::now();
+            out2 << img_query_id[i] << "\t" << std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count() / 1000000.0 << std::endl;
+
+            int len = img_ids.size();
+            // std::cout << "img Successfully search, " << len << "results." << std::endl;
             int rank = 0;
             for (int j = 0; j < len; j++)
-                out1 << img_query_id[i] << "\t" << img_ids[j] << "\t" << ++rank << "\t" << img_distances[j] << std::endl;
+                out1 << img_query_id[i] << "\t" << img_ids[j] << "\t " << ++rank << "\t" << img_distances[j] << std::endl;
             for (int j = len; j < topk; j++)
                 out1 << img_query_id[i] << "\t" << -1 << "\t" << ++rank << "\t" << -1 << std::endl;
         }
-
-        auto endTime = std::chrono::high_resolution_clock::now();
-        out2 << img_query_id[i] << "\t" << std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count() / 1000000.0 << std::endl;
 
         int number = i + 1;
         if (number % 1000 == 0)
@@ -133,7 +119,7 @@ void search(int ef){
 
 int
 main(int argc, char* argv[]) {
-    for (int ef = 2048; ef < 10000; ef *= 2){
+    for (int ef = 64; ef < 2000; ef *= 2){
         search(ef);
     }
     return 0;

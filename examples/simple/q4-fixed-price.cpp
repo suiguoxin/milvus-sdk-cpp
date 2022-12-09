@@ -6,16 +6,18 @@
 #include <set>
 #include <string>
 #include <chrono>
+#include <vector>
 
 #include "milvus/MilvusClient.h"
 #include "milvus/types/CollectionSchema.h"
 
 int topk = 50;
-int ef = 64;
+// int ef = 64;
 const int SIZE_QUERY = 10000;
 const std::string img_collection_name = "recipe_img";
+const std::string ins_collection_name = "recipe_instr";
 std::string img_filename = "/embeddings/img_embeds.tsv";
-std::string filter_filename = "/embeddings/string_filter.tsv";
+// std::string filter_filename = "/embeddings/price.tsv";
 std::string outputResult = "/result/";
 int m = 1024;
 
@@ -29,7 +31,7 @@ CheckStatus(std::string&& prefix, const milvus::Status& status) {
     }
 }
 
-void search(int ef){
+void search(int ef, int price){
     printf("Search starting...\n");
 
     auto client = milvus::MilvusClient::Create();
@@ -48,10 +50,10 @@ void search(int ef){
     std::cout << "Collection " << img_collection_name << " row count: " << coll_stat.RowCount() << std::endl;
     
     std::ifstream img_in(img_filename);
-    std::ifstream filter_in(filter_filename);
+    // std::ifstream filter_in(filter_filename);
 
     std::vector<float> img_query_id;
-    std::vector<std::string> filters;
+    // std::vector<int> prices;
     std::vector<std::vector<float> > img_query;
     img_query.resize(SIZE_QUERY);
     std::string line;
@@ -74,17 +76,17 @@ void search(int ef){
     }
     std::cout << num << " img queries has been read." << std::endl;
     
-    num = 0;
-    for (; getline(filter_in, line);) {
-        line.erase(0, line.find("\t") + 1);
-        // ingre_num.push_back(std::stoi(line.substr(0, line.find("\t"))));
-        // line.erase(0, line.find("\t") + 1);
-        filters.push_back(line.substr(0, line.find("\n")));
-        num++;
-    }
-    std::cout << num << " filter has been read." << std::endl;
-    std::string output_result_path = outputResult + "qrels-" + std::to_string(ef) + ".tsv";
-    std::string output_lantency_path = outputResult + "latency-" + std::to_string(ef) + ".tsv";
+    // num = 0;
+    // for (; getline(filter_in, line);) {
+    //     line.erase(0, line.find("\t") + 1);
+    //     // ingre_num.push_back(std::stoi(line.substr(0, line.find("\t"))));
+    //     // line.erase(0, line.find("\t") + 1);
+    //     prices.push_back(std::stoi(line.substr(0, line.find("\n"))));
+    //     num++;
+    // }
+    // std::cout << num << " filter has been read." << std::endl;
+    std::string output_result_path = outputResult + "qrels-" + std::to_string(price) + "-" + std::to_string(ef) + ".tsv";
+    std::string output_lantency_path = outputResult + "latency-" + std::to_string(price) + "-" + std::to_string(ef) + ".tsv";
     std::ofstream out1(output_result_path);
     std::ofstream out2(output_lantency_path);
 
@@ -100,7 +102,7 @@ void search(int ef){
         img_arguments.AddTargetVector("img_embeds", img_query[i]);
         img_arguments.AddExtraParam("ef", ef);
         // img_arguments.SetExpression("ingredient_count <= " + std::to_string(ingre_num[i]) + " || instruction_step <= " + std::to_string(instruct_step[i]));
-        img_arguments.SetExpression("text not like \"%" + filters[i] + "%\"");
+        img_arguments.SetExpression("price <= " + std::to_string(price));
         img_arguments.SetMetricType(milvus::MetricType::IP);
         milvus::SearchResults img_search_results{};
         auto status = client->Search(img_arguments, img_search_results); 
@@ -126,15 +128,20 @@ void search(int ef){
         out2 << img_query_id[i] << "\t" << std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count() / 1000000.0 << std::endl;
 
         int number = i + 1;
-        if (number % 1000 == 0)
+        if (number % 100 == 0)
             std::cout << number << " queries searched." << std::endl;
     }
 }
 
 int
 main(int argc, char* argv[]) {
-    for (int ef = 2048; ef < 10000; ef *= 2){
-        search(ef);
+    std::vector<int> prices{3000, 9000, 300};
+    std::vector<int> efs{100, 1000, 10000};
+
+    for (int price : prices){
+        for (int ef : efs){
+            search(ef, price);
+        }
     }
     return 0;
 }
